@@ -5,6 +5,7 @@ import { Label } from './ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { User, Mail, Phone, MapPin, Edit, Home } from 'lucide-react';
+import type { PageString } from "../App";
 
 // Firestore
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'; 
@@ -16,13 +17,13 @@ interface UserData {
   email: string;  
   phoneNumber: string;
   city: string;
-  accountType: 'user' | 'artisan';
+  accountType: 'tourist' | 'user' | 'artisan';
   avatarUrl?: string;
 }
 
 interface ProfilePageProps {
   userData: UserData;
-  onNavigate?: (page: string) => void;
+onNavigate?: (page: PageString) => void
   onUpdate?: (data: Partial<UserData>) => void;
   language?: 'ar' | 'en';
   t?: any;

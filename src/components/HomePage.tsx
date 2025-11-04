@@ -1,8 +1,9 @@
 import { Button } from './ui/button';
 import heroHeader from '../assets/new-header.png';
+import type { PageString } from "../App";
 
 interface HomePageProps {
-  onNavigate?: (page: string) => void;
+onNavigate?: (page: PageString) => void
   language?: 'ar' | 'en';
   t?: any;
 }

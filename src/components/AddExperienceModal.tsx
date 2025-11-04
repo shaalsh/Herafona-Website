@@ -126,7 +126,6 @@ export  function AddExperienceModal({
     setFormData((prev) => ({ ...prev, [field]: isNaN(num as number) ? '' : num }));
   };
 
-  // رفع الصورة (اختياري)
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -206,7 +205,6 @@ export  function AddExperienceModal({
 
       await addDoc(collection(db, 'experiences'), docData);
 
-      // تصفير النموذج وإغلاق النافذة
       setFormData({
         category: '',
         title: '',

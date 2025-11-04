@@ -1,9 +1,10 @@
 import whiteLogo from '../assets/logo-white.png';
+import type { PageString } from "../App";
 
 interface FooterProps {
   language?: 'ar' | 'en';
   t?: any;
-  onNavigate?: (page: string) => void;
+onNavigate?: (page: PageString) => void
 }
 
 export function Footer({ language = 'ar', t, onNavigate }: FooterProps) {

@@ -5,13 +5,9 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    // الامتدادات الافتراضية + صريحة هنا
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
     alias: {
-      // ألياس عام للمشروع
       '@': path.resolve(__dirname, './src'),
-
-      // الألياسات المولَّدة (تبقى كما هي)
       'vaul@1.1.2': 'vaul',
       'sonner@2.0.3': 'sonner',
       'recharts@2.15.2': 'recharts',
@@ -58,6 +54,8 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true
+    open: true,
+    host: true, // ضروري يسمح بالاتصالات الخارجية
+    allowedHosts: ['.trycloudflare.com', '.ngrok.io'] // يسمح بأي رابط مؤقت من Cloudflare أو ngrok
   }
 });

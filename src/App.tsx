@@ -1,3 +1,4 @@
+// src/App.tsx
 import { db } from "./firebase";
 import {
   addDoc,
@@ -8,6 +9,8 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
+  Timestamp,
 } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 import { Header } from "./components/Header";
@@ -24,6 +27,7 @@ import { SimpleToaster } from "./components/SimpleToaster";
 import { toast } from "sonner";
 import { translations } from "./translations";
 import { ForgotPassword } from "./components/ForgotPassword";
+import AssistantPage from "./components/AssistantPage";
 
 import {
   listenAuth,
@@ -37,21 +41,28 @@ import {
   type AccountType,
 } from "./firebase";
 
-//  Cloudinary Config 
+/* 
+   Cloudinary config
+    */
 const CLOUD_NAME = "dfxadnqle";
 const UPLOAD_PRESET = "herafona_unsigned";
 const CLOUD_FOLDER = "herafona/experiences";
 
-//  Collections & Fields 
+/* 
+   Firestore collections/fields
+    */
 const EXP_COLLECTION = "experiences";
-const BOOKING_COLLECTION = "bookings"; 
-const EXPERIENCE_IMAGE_FIELD = "image"; 
-const EXPERIENCE_OWNER_FIELD = "artisanUid"; 
- 
+const BOOKING_COLLECTION = "booking";
+const LEGACY_BOOKING_COLLECTION = "booking"; // احتياطي إن تغيّر الاسم مستقبلًا
+const EXPERIENCE_IMAGE_FIELD = "image";
+const EXPERIENCE_OWNER_FIELD = "artisanUid";
 
+/* 
+   Helpers
+    */
 function dataURLtoBlob(dataUrl: string) {
-  const [header, b64] = dataUrl.split(",");
-  const mime = header.match(/data:(.*);base64/)?.[1] ?? "image/jpeg";
+  const [header = "", b64 = ""] = dataUrl.split(",");
+  const mime = header.match(/data:(.*);base64/)?.[1] || "image/jpeg";
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -74,7 +85,15 @@ async function uploadImageToCloudinary(dataUrl: string): Promise<string> {
   return json.secure_url as string;
 }
 
-// ===== Types =====
+function cleanUndefined<T extends Record<string, any>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as T;
+}
+
+/* 
+   Types
+    */
 export type PageString =
   | "home"
   | "events"
@@ -102,13 +121,13 @@ export interface Experience {
   artisanName: string;
   category: string;
   title: string;
-  maxPersons: number;       // ← رقم
+  maxPersons: number;
   allowedGender: string;
   city: string;
   description: string;
-  pricePerPerson: number;   // ← رقم
-  durationHours: number;    // ← رقم
-  image?: string;           // ← الاسم الموحّد لحقل الصورة
+  pricePerPerson: number;
+  durationHours: number;
+  image?: string;
 }
 
 export interface Booking {
@@ -117,29 +136,34 @@ export interface Booking {
   experienceTitle: string;
   userID: string;
   artisanID: string;
-  bookingDate: any;
+  bookingDate: any; // Firestore Timestamp
   totalPrice: number;
   numberOfPeople: number;
   status: "pending" | "confirmed" | "cancelled";
-  createdAt: any;
+  createdAt: any; // Firestore Timestamp
   userName?: string;
   userEmail?: string;
   userPhone?: string;
 }
 
-// محوّل آمن من FireUserDoc إلى UserData
+/* 
+   Mapping
+    */
 function toUserData(doc: FireUserDoc): UserData {
   return {
-    uid: doc.uid ?? "",
-    fullName: doc.fullName ?? "",
-    email: doc.email ?? "",
-    phoneNumber: doc.phoneNumber ?? "",
-    city: doc.city ?? "",
-    accountType: (doc.accountType as AccountType) ?? "user",
+    uid: doc.uid || "",
+    fullName: doc.fullName || "",
+    email: doc.email || "",
+    phoneNumber: doc.phoneNumber || "",
+    city: doc.city || "",
+    accountType: (doc.accountType as AccountType) || "tourist",
     avatarUrl: (doc as any).avatarUrl,
   };
 }
 
+/* 
+   App Component
+    */
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageString>("home");
   const [language, setLanguage] = useState<"ar" | "en">("ar");
@@ -152,7 +176,7 @@ export default function App() {
     email: "",
     phoneNumber: "",
     city: "",
-    accountType: "user",
+    accountType: "tourist",
   });
 
   const userType = userData.accountType;
@@ -164,115 +188,167 @@ export default function App() {
   const [selectedExperience, setSelectedExperience] = useState<Experience | null>(null);
   const [showAddExperienceModal, setShowAddExperienceModal] = useState(false);
 
-  const t = useMemo(() => translations[language] ?? translations.ar, [language]);
+  const t = useMemo(() => translations[language] || translations.ar, [language]);
 
-  // ===== Auth listener =====
+  /*  Auth  */
   useEffect(() => {
     const unsub = listenAuth(async (u) => {
-      if (u) {
-        const docData = await getUserDoc(u.uid);
-        if (docData) {
-          setUserData(toUserData(docData));
-          setIsLoggedIn(true);
+      try {
+        if (u) {
+          const docData = await getUserDoc(u.uid);
+          if (docData) {
+            setUserData({
+              uid: docData.uid || "",
+              fullName: docData.fullName || "",
+              email: docData.email || "",
+              phoneNumber: docData.phoneNumber || "",
+              city: docData.city || "",
+              accountType: (docData.accountType as AccountType) || "tourist",
+              avatarUrl: (docData as any).avatarUrl,
+            });
+            setIsLoggedIn(true);
+          } else {
+            const profile: FireUserDoc = {
+              uid: u.uid,
+              fullName: u.displayName || "",
+              email: u.email || "",
+              phoneNumber: "",
+              city: "",
+              accountType: "tourist",
+            };
+            await createUserDoc(profile);
+            setUserData(toUserData(profile));
+            setIsLoggedIn(true);
+          }
         } else {
-          // مستخدم مصادق لكن بدون ملف تعريف => أنشئ ملفًا مبدئيًا
-          const profile: FireUserDoc = {
-            uid: u.uid,
-            fullName: u.displayName ?? "",
-            email: u.email ?? "",
+          setIsLoggedIn(false);
+          setUserData({
+            uid: "",
+            fullName: "",
+            email: "",
             phoneNumber: "",
             city: "",
-            accountType: "user",
-          };
-          await createUserDoc(profile);
-          setUserData(toUserData(profile));
-          setIsLoggedIn(true);
+            accountType: "tourist",
+          });
         }
-      } else {
-        setIsLoggedIn(false);
-        setUserData({
-          uid: "",
-          fullName: "",
-          email: "",
-          phoneNumber: "",
-          city: "",
-          accountType: "user",
-        });
+      } finally {
+        setAuthReady(true);
       }
-      setAuthReady(true);
     });
     return () => unsub();
   }, []);
 
-  // ===== Real-time experiences =====
+  /*  Experiences stream  */
   useEffect(() => {
-    const q = query(collection(db, "experiences"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as any),
-      })) as Experience[];
-      setExperiences(data);
+    const qExp = query(collection(db, EXP_COLLECTION), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(qExp, (snap) => {
+      const data = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as any[];
+      setExperiences(
+        data.map((x) => ({
+          id: x.id,
+          artisanUid: x[EXPERIENCE_OWNER_FIELD] || "",
+          artisanName: x.artisanName || "",
+          category: x.category || "",
+          title: x.title || "",
+          maxPersons: Number(x.maxPersons || 1),
+          allowedGender: x.allowedGender || "any",
+          city: x.city || "",
+          description: x.description || "",
+          pricePerPerson: Number(x.pricePerPerson || 0),
+          durationHours: Number(x.durationHours || 1),
+          image: x[EXPERIENCE_IMAGE_FIELD] || undefined,
+        }))
+      );
     });
     return () => unsub();
   }, []);
 
-  // ===== Real-time bookings =====
+  /*  Bookings stream (role-based)  */
   useEffect(() => {
-    const q = query(collection(db, "booking"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map((d) => {
-        const b = d.data() as any;
-        return {
-          id: d.id,
-          experienceTitle: b.experienceTitle ?? "",
-          userID: b.userID ?? "",
-          artisanID: b.artisanID ?? "",
-          bookingDate: b.bookingDate,
-          totalPrice: b.totalPrice ?? 0,
-          numberOfPeople: b.numberOfPeople ?? 1,
-          status: (b.status ?? "pending") as Booking["status"],
-          createdAt: b.createdAt,
-        } as Booking;
-      });
-      setBookings(data);
-    });
-    return () => unsub();
-  }, []);
+    if (!authReady || !userId) return;
 
-  // ===== Add experience =====
+    try {
+      const base = collection(db, BOOKING_COLLECTION);
+      const qBook =
+        userType === "artisan"
+          ? query(base, where("artisanID", "==", userId), orderBy("createdAt", "desc"))
+          : query(base, where("userID", "==", userId), orderBy("createdAt", "desc"));
+
+      const unsub = onSnapshot(
+        qBook,
+        (snap) => {
+          const arr = snap.docs.map((d) => {
+            const b = d.data() as any;
+            const rec: Booking = {
+              id: d.id,
+              experienceId: b.experienceId || undefined,
+              experienceTitle: b.experienceTitle || "",
+              userID: b.userID || "",
+              artisanID: b.artisanID || "",
+              bookingDate: b.bookingDate,
+              totalPrice: Number(b.totalPrice || 0),
+              numberOfPeople: Number(b.numberOfPeople || 1),
+              status: (b.status || "pending") as Booking["status"],
+              createdAt: b.createdAt,
+              userName: b.userName,
+              userEmail: b.userEmail,
+              userPhone: b.userPhone,
+            };
+            return rec;
+          });
+          setBookings(arr);
+        },
+        (err) => {
+          // في حال احتاج فهرس مركّب
+          if (typeof err?.message === "string" && err.message.includes("index")) {
+            toast.error("");
+          } else {
+            toast.error("تعذّر قراءة الحجوزات");
+          }
+        }
+      );
+      return () => unsub();
+    } catch {
+    }
+  }, [authReady, userId, userType]);
+
+  /*  Actions  */
   const handleAddExperience = async (data: any) => {
     try {
       const imageUrl = data.image ? await uploadImageToCloudinary(data.image) : undefined;
 
-      const payload = {
-        artisanUid: userId,
+      const payload: Record<string, any> = cleanUndefined({
+        [EXPERIENCE_OWNER_FIELD]: userId,
         artisanName: userName,
         category: data.category,
         title: data.title,
-        maxPersons: Number(data.maxPersons),
+        maxPersons: Number(data.maxPersons ?? 1),
         allowedGender: data.allowedGender,
         city: data.city,
         description: data.description,
-        pricePerPerson: Number(data.pricePerPerson),
-        durationHours: Number(data.durationHours),
-        image: imageUrl, // ← اسم الحقل الموحّد
+        pricePerPerson: Number(data.pricePerPerson ?? 0),
+        durationHours: Number(data.durationHours ?? 1),
+        [EXPERIENCE_IMAGE_FIELD]: imageUrl ?? null,
+        createdBy: userId,
         createdAt: serverTimestamp(),
-      };
+      });
 
-      await addDoc(collection(db, "experiences"), payload);
-      toast.success(t.experienceAdded ?? "تمت إضافة التجربة بنجاح");
+      await addDoc(collection(db, EXP_COLLECTION), payload);
       setShowAddExperienceModal(false);
+      toast.success(t.experienceAdded || "تمت إضافة التجربة بنجاح");
     } catch (err: any) {
-      toast.error(err?.message ?? "تعذّر رفع/حفظ التجربة");
+      toast.error(err?.message || "تعذّر حفظ التجربة");
     }
   };
 
-  // ===== Book experience =====
   const handleBook = (experience: Experience) => {
     if (!isLoggedIn) {
-      toast.error(t.pleaseLoginToBook ?? "الرجاء تسجيل الدخول لإتمام الحجز");
+      toast.error(t.pleaseLoginToBook || "سجّلي الدخول لإتمام الحجز");
       setCurrentPage("login");
+      return;
+    }
+    if (!["tourist", "user"].includes(String(userData.accountType))) {
+      toast.error("الحجز متاح لحساب السائح فقط");
       return;
     }
     setSelectedExperience(experience);
@@ -281,47 +357,89 @@ export default function App() {
 
   const handleBookingComplete = async (bookingData: any) => {
     if (!selectedExperience) return;
+
     try {
-      await addDoc(collection(db, "booking"), {
-        artisanID: selectedExperience.artisanUid ?? "",
+      const dateStr: string | undefined = bookingData?.date;
+      const timeStr: string | undefined = bookingData?.time;
+
+      if (!dateStr || !timeStr) {
+        toast.error("الرجاء اختيار التاريخ والوقت.");
+        return;
+      }
+
+      const bookingIso = `${dateStr}T${timeStr}:00`;
+      const asDate = new Date(bookingIso);
+      if (isNaN(asDate.getTime())) {
+        toast.error("صيغة التاريخ أو الوقت غير صحيحة.");
+        return;
+      }
+
+      const bookingTs = Timestamp.fromDate(asDate);
+
+      
+      if (!bookingTs || typeof (bookingTs as any).seconds !== "number") {
+        throw new Error("Invalid booking timestamp.");
+      }
+
+      const persons = Number(bookingData.numberOfPeople ?? 1);
+      const pricePerPerson = Number(selectedExperience.pricePerPerson ?? 0);
+      const total =
+        bookingData.totalPrice != null ? Number(bookingData.totalPrice) : pricePerPerson * persons;
+
+      const payload = cleanUndefined({
+        artisanID: selectedExperience.artisanUid || "",
         userID: userId,
+        experienceId: selectedExperience.id,
         experienceTitle: selectedExperience.title,
-        bookingDate: bookingData.bookingDate,
-        totalPrice: bookingData.totalPrice,
-        numberOfPeople: bookingData.numberOfPeople,
-        status: "pending",
+        bookingDate: bookingTs, // ✅ مضمون ليس undefined
+        numberOfPeople: persons,
+        totalPrice: Number.isFinite(total) ? total : 0,
+        status: "pending" as const,
         createdAt: serverTimestamp(),
+        userName: bookingData.fullName || undefined,
+        userEmail: bookingData.email || undefined,
+        userPhone: bookingData.phone || undefined,
       });
+
+      await addDoc(collection(db, BOOKING_COLLECTION), payload);
+
       setSelectedExperience(null);
       setCurrentPage("reservations");
       toast.success(t.bookingSuccess ?? "تم إنشاء الحجز بنجاح");
-    } catch (err) {
-      toast.error("فشل إنشاء الحجز");
-      console.error(err);
+    } catch (err: any) {
+      console.error("[booking] write error:", err);
+      const msg =
+        err?.code === "permission-denied"
+          ? "ليس لديك صلاحية لإتمام الحجز."
+          : err?.message ?? "حدث خطأ أثناء إنشاء الحجز.";
+      toast.error(msg);
+      throw err;
     }
   };
 
-  // ===== Update status =====
   const handleUpdateBookingStatus = async (
     bookingId: string,
     newStatus: "pending" | "confirmed" | "cancelled"
   ) => {
     try {
-      const ref = doc(db, "booking", bookingId);
-      await updateDoc(ref, { status: newStatus });
+      try {
+        const ref = doc(db, BOOKING_COLLECTION, bookingId);
+        await updateDoc(ref, { status: newStatus });
+      } catch {
+        const refLegacy = doc(db, LEGACY_BOOKING_COLLECTION, bookingId);
+        await updateDoc(refLegacy, { status: newStatus });
+      }
       toast.success("تم تحديث الحالة بنجاح");
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error("فشل تحديث الحالة");
     }
   };
 
-  const handleNavigate = (page: PageString) => {
-    setCurrentPage(page);
-  };
+  const handleNavigate = (page: PageString) => setCurrentPage(page);
 
   if (!authReady) return null;
 
+  /*  Render  */
   return (
     <div className="min-h-screen flex flex-col" dir={language === "ar" ? "rtl" : "ltr"}>
       <Header
@@ -343,9 +461,7 @@ export default function App() {
             experiences={experiences}
             onBook={handleBook}
             userType={userType}
-            onAddExperience={
-              userType === "artisan" ? () => setShowAddExperienceModal(true) : undefined
-            }
+            onAddExperience={userType === "artisan" ? () => setShowAddExperienceModal(true) : undefined}
             language={language}
             t={t}
           />
@@ -358,9 +474,7 @@ export default function App() {
             experiences={experiences}
             bookings={bookings}
             onNavigate={handleNavigate}
-            onAddExperience={
-              userType === "artisan" ? () => setShowAddExperienceModal(true) : undefined
-            }
+            onAddExperience={userType === "artisan" ? () => setShowAddExperienceModal(true) : undefined}
             onUpdateBookingStatus={handleUpdateBookingStatus}
             language={language}
             t={t}
@@ -379,18 +493,25 @@ export default function App() {
 
         {currentPage === "login" && (
           <LoginPage
-          onLogin={async (email, password) => {
-  const cred = await signIn(email, password);
-  const userDoc = await getUserDoc(cred.user.uid);
-  if (!userDoc) {
-    toast.error("ملف المستخدم غير موجود. الرجاء إنشاء حساب جديد أولًا.");
-    return;
-  }
-  setUserData(toUserData(userDoc));
-  setIsLoggedIn(true);
-  setCurrentPage("home");
-}}
-
+            onLogin={async (email, password) => {
+              const cred = await signIn(email, password);
+              const userDoc = await getUserDoc(cred.user.uid);
+              if (!userDoc) {
+                toast.error("ملف المستخدم غير موجود. الرجاء إنشاء حساب جديد أولًا.");
+                return;
+              }
+              setUserData({
+                uid: userDoc.uid || "",
+                fullName: userDoc.fullName || "",
+                email: userDoc.email || "",
+                phoneNumber: userDoc.phoneNumber || "",
+                city: userDoc.city || "",
+                accountType: (userDoc.accountType as AccountType) || "tourist",
+                avatarUrl: (userDoc as any).avatarUrl,
+              });
+              setIsLoggedIn(true);
+              setCurrentPage("home");
+            }}
             onNavigateToRegister={() => setCurrentPage("register")}
             onNavigateToForgot={() => setCurrentPage("forgot")}
             language={language}
@@ -408,7 +529,7 @@ export default function App() {
                 email: data.email,
                 phoneNumber: data.phoneNumber,
                 city: data.city,
-                accountType: data.accountType,
+                accountType: (data.accountType as AccountType) || "tourist",
               };
               await createUserDoc(profile);
               setUserData(toUserData(profile));
@@ -435,12 +556,13 @@ export default function App() {
         )}
 
         {currentPage === "forgot" && (
-          <ForgotPassword
-            language={language}
-            t={t}
-            onBackToLogin={() => setCurrentPage("login")}
-          />
+          <ForgotPassword language={language} t={t} onBackToLogin={() => setCurrentPage("login")} />
         )}
+
+        {currentPage === "assistant" && (
+          
+  <AssistantPage  />
+)}
       </main>
 
       <Footer language={language} t={t} onNavigate={handleNavigate} />

@@ -3,6 +3,8 @@ import { EventCard } from './EventCard';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import type { Experience } from "../App";
+
 import {
   Select,
   SelectContent,
@@ -13,25 +15,10 @@ import {
 import { Slider } from './ui/slider';
 import { Search, Filter, X } from 'lucide-react';
 
-interface Experience {
-  id: string;
-  artisanId: string;
-  artisanName: string;
-  category: string;
-  title: string;
-  maxPersons: string;
-  allowedGender: string;
-  city: string;
-  description: string;
-  pricePerPerson: string;
-  durationHours: string;
-  image?: string;
-}
-
 interface EventsPageProps {
   experiences: Experience[];
   onBook?: (experience: Experience) => void;
-  userType?: 'user' | 'artisan';
+  userType: "user" | "artisan" | "tourist";
   onAddExperience?: () => void;
   language?: 'ar' | 'en';
   t?: any;
@@ -48,10 +35,11 @@ export function EventsPage({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedCity, setSelectedCity] = useState<string>('all');
-  const [priceRange, setPriceRange] = useState([0, 400]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 400]);
 
   const isRTL = language === 'ar';
 
+  // 🔍 فلترة التجارب حسب البحث والفلاتر
   const filteredEvents = experiences.filter((event) => {
     const matchesSearch =
       searchQuery === '' ||
@@ -60,7 +48,7 @@ export function EventsPage({
     const matchesCategory = selectedCategory === 'all' || event.category === selectedCategory;
     const matchesCity = selectedCity === 'all' || event.city === selectedCity;
     const matchesPrice =
-      Number(event.pricePerPerson) >= priceRange[0] && 
+      Number(event.pricePerPerson) >= priceRange[0] &&
       Number(event.pricePerPerson) <= priceRange[1];
 
     return matchesSearch && matchesCategory && matchesCity && matchesPrice;
@@ -103,7 +91,9 @@ export function EventsPage({
             <div className="col-span-12">
               <Label className="mb-3 block">{t?.search || 'البحث'}</Label>
               <div className="relative">
-                <Search className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground`} />
+                <Search
+                  className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground`}
+                />
                 <Input
                   placeholder={t?.searchPlaceholder || 'ابحث باسم الورشة أو الحرفي...'}
                   value={searchQuery}
@@ -181,12 +171,12 @@ export function EventsPage({
           </div>
         </div>
 
-        {/* Events Grid - 3 Columns */}
+        {/* Events Grid */}
         {filteredEvents.length > 0 ? (
           <div className="grid grid-cols-12 gap-8">
             {filteredEvents.map((event) => (
               <div key={event.id} className="col-span-4">
-                <EventCard 
+                <EventCard
                   id={event.id}
                   title={event.title}
                   category={event.category}
@@ -213,7 +203,8 @@ export function EventsPage({
                 {t?.noEventsFound || 'لا توجد فعاليات حاليًّا'}
               </h3>
               <p className="text-muted-foreground mb-8">
-                {t?.noEventsDescription || 'لم نجد أي فعاليات تطابق معايير البحث. جرّب تعديل الفلاتر أو ارجع لاحقًا.'}
+                {t?.noEventsDescription ||
+                  'لم نجد أي فعاليات تطابق معايير البحث. جرّب تعديل الفلاتر أو ارجع لاحقًا.'}
               </p>
               {userType === 'artisan' && (
                 <Button

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
+import type { PageString } from "../App";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +16,7 @@ interface HeaderProps {
   isLoggedIn?: boolean;
   userName?: string;
   userAvatar?: string;
-  onNavigate?: (page: string) => void;
+onNavigate?: (page: PageString) => void
   onLogout?: () => void;
   language?: 'ar' | 'en';
   onLanguageToggle?: () => void;

@@ -34,8 +34,7 @@ if (typeof window !== "undefined") {
   console.groupEnd();
 }
 
-// ================= Helpers & Types =================
-export type AccountType = "user" | "artisan";
+export type AccountType = "tourist" | "user" | "artisan";
 
 export interface FireUserDoc {
   uid: string;
@@ -46,9 +45,6 @@ export interface FireUserDoc {
   accountType: AccountType;
   avatarUrl?: string;
 
-  // لتوافق القواعد:
-  // role = "artisan" | "user" | "admin"
-  // status = "pending" | "approved" | "rejected"
   role?: "user" | "artisan" | "admin";
   status?: "pending" | "approved" | "rejected";
 
@@ -56,7 +52,6 @@ export interface FireUserDoc {
   updatedAt?: any;
 }
 
-// onAuth listener
 export const listenAuth = (cb: (u: User | null) => void) =>
   onAuthStateChanged(auth, cb);
 
@@ -68,7 +63,6 @@ export const register = (email: string, password: string) =>
 
 export const logout = () => signOut(auth);
 
-// ============= Firestore user doc helpers =============
 export const getUserDoc = async (uid: string) => {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -76,7 +70,6 @@ export const getUserDoc = async (uid: string) => {
 };
 
 export const createUserDoc = async (data: FireUserDoc) => {
-  // تعبئة role/status الافتراضية حسب نوع الحساب
   const role = data.role ?? (data.accountType === "artisan" ? "artisan" : "user");
   const status = data.status ?? (data.accountType === "artisan" ? "pending" : "approved");
 
@@ -95,9 +88,7 @@ export const updateUserDoc = async (uid: string, data: Partial<FireUserDoc>) => 
   await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
 };
 
-// ===== هيلبرز مفيدة لإدارة صلاحيات الحرفي =====
 export const approveArtisan = async (uid: string) => {
-  // يضبط الحرفي إلى approved (للتوافق مع Rules: role=artisan && status=approved)
   await updateUserDoc(uid, { role: "artisan", status: "approved" });
 };
 
