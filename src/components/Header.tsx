@@ -8,9 +8,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { User, Calendar, LogOut } from 'lucide-react';
-import coloredLogo from '../assets/logo-color.png';
+import coloredLogo from "../assets/logo-color.png";
 
 interface HeaderProps {
   isLoggedIn?: boolean;

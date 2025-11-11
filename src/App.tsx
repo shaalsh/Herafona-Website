@@ -1,4 +1,5 @@
 // src/App.tsx
+
 import { db } from "./firebase";
 import {
   addDoc,
@@ -41,25 +42,19 @@ import {
   type AccountType,
 } from "./firebase";
 
-/* 
-   Cloudinary config
-    */
+/* Cloudinary config */
 const CLOUD_NAME = "dfxadnqle";
 const UPLOAD_PRESET = "herafona_unsigned";
 const CLOUD_FOLDER = "herafona/experiences";
 
-/* 
-   Firestore collections/fields
-    */
+/* Firestore collections/fields */
 const EXP_COLLECTION = "experiences";
 const BOOKING_COLLECTION = "booking";
-const LEGACY_BOOKING_COLLECTION = "booking"; // احتياطي إن تغيّر الاسم مستقبلًا
+const LEGACY_BOOKING_COLLECTION = "booking"; // احتياطي
 const EXPERIENCE_IMAGE_FIELD = "image";
 const EXPERIENCE_OWNER_FIELD = "artisanUid";
 
-/* 
-   Helpers
-    */
+/* Helpers */
 function dataURLtoBlob(dataUrl: string) {
   const [header = "", b64 = ""] = dataUrl.split(",");
   const mime = header.match(/data:(.*);base64/)?.[1] || "image/jpeg";
@@ -86,14 +81,10 @@ async function uploadImageToCloudinary(dataUrl: string): Promise<string> {
 }
 
 function cleanUndefined<T extends Record<string, any>>(obj: T): T {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined)
-  ) as T;
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as T;
 }
 
-/* 
-   Types
-    */
+/* Types */
 export type PageString =
   | "home"
   | "events"
@@ -146,9 +137,7 @@ export interface Booking {
   userPhone?: string;
 }
 
-/* 
-   Mapping
-    */
+/* Mapping */
 function toUserData(doc: FireUserDoc): UserData {
   return {
     uid: doc.uid || "",
@@ -161,9 +150,7 @@ function toUserData(doc: FireUserDoc): UserData {
   };
 }
 
-/* 
-   App Component
-    */
+/* App Component */
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageString>("home");
   const [language, setLanguage] = useState<"ar" | "en">("ar");
@@ -190,7 +177,7 @@ export default function App() {
 
   const t = useMemo(() => translations[language] || translations.ar, [language]);
 
-  /*  Auth  */
+  /* Auth */
   useEffect(() => {
     const unsub = listenAuth(async (u) => {
       try {
@@ -238,32 +225,61 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  /*  Experiences stream  */
+  /* Experiences stream with fallback (orderBy -> fallback without orderBy) */
   useEffect(() => {
-    const qExp = query(collection(db, EXP_COLLECTION), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(qExp, (snap) => {
-      const data = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as any[];
-      setExperiences(
-        data.map((x) => ({
-          id: x.id,
-          artisanUid: x[EXPERIENCE_OWNER_FIELD] || "",
-          artisanName: x.artisanName || "",
-          category: x.category || "",
-          title: x.title || "",
-          maxPersons: Number(x.maxPersons || 1),
-          allowedGender: x.allowedGender || "any",
-          city: x.city || "",
-          description: x.description || "",
-          pricePerPerson: Number(x.pricePerPerson || 0),
-          durationHours: Number(x.durationHours || 1),
-          image: x[EXPERIENCE_IMAGE_FIELD] || undefined,
-        }))
-      );
-    });
+    // محاولة أولى مع orderBy
+    const qExpOrdered = query(collection(db, EXP_COLLECTION), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(
+      qExpOrdered,
+      (snap) => {
+        const data = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as any[];
+        setExperiences(
+          data.map((x) => ({
+            id: x.id,
+            artisanUid: x[EXPERIENCE_OWNER_FIELD] || "",
+            artisanName: x.artisanName || "",
+            category: x.category || "",
+            title: x.title || "",
+            maxPersons: Number(x.maxPersons || 1),
+            allowedGender: x.allowedGender || "any",
+            city: x.city || "",
+            description: x.description || "",
+            pricePerPerson: Number(x.pricePerPerson || 0),
+            durationHours: Number(x.durationHours || 1),
+            image: x[EXPERIENCE_IMAGE_FIELD] || undefined,
+          }))
+        );
+      },
+      // فشل الفهرس -> اشتراك بديل بدون orderBy + فرز محلي
+      () => {
+        const unsubFallback = onSnapshot(collection(db, EXP_COLLECTION), (snap2) => {
+          const data = snap2.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as any[];
+          data.sort((a, b) => (b?.createdAt?.seconds ?? 0) - (a?.createdAt?.seconds ?? 0));
+          setExperiences(
+            data.map((x) => ({
+              id: x.id,
+              artisanUid: x[EXPERIENCE_OWNER_FIELD] || "",
+              artisanName: x.artisanName || "",
+              category: x.category || "",
+              title: x.title || "",
+              maxPersons: Number(x.maxPersons || 1),
+              allowedGender: x.allowedGender || "any",
+              city: x.city || "",
+              description: x.description || "",
+              pricePerPerson: Number(x.pricePerPerson || 0),
+              durationHours: Number(x.durationHours || 1),
+              image: x[EXPERIENCE_IMAGE_FIELD] || undefined,
+            }))
+          );
+        });
+        // نبدّل الاشتراك بالاحتياطي
+        return () => unsubFallback();
+      }
+    );
     return () => unsub();
   }, []);
 
-  /*  Bookings stream (role-based)  */
+  /* Bookings stream (role-based) — بدون orderBy + فرز محلي */
   useEffect(() => {
     if (!authReady || !userId) return;
 
@@ -271,8 +287,8 @@ export default function App() {
       const base = collection(db, BOOKING_COLLECTION);
       const qBook =
         userType === "artisan"
-          ? query(base, where("artisanID", "==", userId), orderBy("createdAt", "desc"))
-          : query(base, where("userID", "==", userId), orderBy("createdAt", "desc"));
+          ? query(base, where("artisanID", "==", userId))
+          : query(base, where("userID", "==", userId));
 
       const unsub = onSnapshot(
         qBook,
@@ -296,23 +312,22 @@ export default function App() {
             };
             return rec;
           });
+
+          arr.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
           setBookings(arr);
         },
         (err) => {
-          // في حال احتاج فهرس مركّب
-          if (typeof err?.message === "string" && err.message.includes("index")) {
-            toast.error("");
-          } else {
-            toast.error("تعذّر قراءة الحجوزات");
-          }
+          console.error("[bookings] snapshot error:", err);
+          toast.error("تعذّر قراءة الحجوزات");
         }
       );
       return () => unsub();
-    } catch {
+    } catch (e) {
+      console.error("[bookings] outer error:", e);
     }
   }, [authReady, userId, userType]);
 
-  /*  Actions  */
+  /* Actions */
   const handleAddExperience = async (data: any) => {
     try {
       const imageUrl = data.image ? await uploadImageToCloudinary(data.image) : undefined;
@@ -343,7 +358,7 @@ export default function App() {
 
   const handleBook = (experience: Experience) => {
     if (!isLoggedIn) {
-      toast.error(t.pleaseLoginToBook || "سجّلي الدخول لإتمام الحجز");
+      toast.error(t.pleaseLoginToBook || "سجّل الدخول لإتمام الحجز");
       setCurrentPage("login");
       return;
     }
@@ -376,7 +391,6 @@ export default function App() {
 
       const bookingTs = Timestamp.fromDate(asDate);
 
-      
       if (!bookingTs || typeof (bookingTs as any).seconds !== "number") {
         throw new Error("Invalid booking timestamp.");
       }
@@ -391,7 +405,7 @@ export default function App() {
         userID: userId,
         experienceId: selectedExperience.id,
         experienceTitle: selectedExperience.title,
-        bookingDate: bookingTs, // ✅ مضمون ليس undefined
+        bookingDate: bookingTs,
         numberOfPeople: persons,
         totalPrice: Number.isFinite(total) ? total : 0,
         status: "pending" as const,
@@ -437,16 +451,30 @@ export default function App() {
 
   const handleNavigate = (page: PageString) => setCurrentPage(page);
 
+  const handleLogout = async () => {
+    await fbLogout();
+    setIsLoggedIn(false);
+    setUserData({
+      uid: "",
+      fullName: "",
+      email: "",
+      phoneNumber: "",
+      city: "",
+      accountType: "tourist",
+    });
+    setCurrentPage("home");
+  };
+
   if (!authReady) return null;
 
-  /*  Render  */
+  /* Render */
   return (
     <div className="min-h-screen flex flex-col" dir={language === "ar" ? "rtl" : "ltr"}>
       <Header
         isLoggedIn={isLoggedIn}
         userName={userName}
         onNavigate={handleNavigate}
-        onLogout={fbLogout}
+        onLogout={handleLogout}
         language={language}
         onLanguageToggle={() => setLanguage(language === "ar" ? "en" : "ar")}
       />
@@ -559,10 +587,7 @@ export default function App() {
           <ForgotPassword language={language} t={t} onBackToLogin={() => setCurrentPage("login")} />
         )}
 
-        {currentPage === "assistant" && (
-          
-  <AssistantPage  />
-)}
+        {currentPage === "assistant" && <AssistantPage />}
       </main>
 
       <Footer language={language} t={t} onNavigate={handleNavigate} />

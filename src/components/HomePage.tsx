@@ -1,5 +1,7 @@
 import { Button } from './ui/button';
+
 import heroHeader from '../assets/new-header.png';
+
 import type { PageString } from "../App";
 
 interface HomePageProps {
@@ -15,7 +17,6 @@ export function HomePage({ onNavigate, language = 'ar', t }: HomePageProps) {
     <div className="w-full" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* ================= Hero ================= */}
       <section className="relative h-[600px] overflow-hidden">
-  {/* الصورة */}
   <img
     src={heroHeader}
     alt=""
@@ -70,58 +71,62 @@ export function HomePage({ onNavigate, language = 'ar', t }: HomePageProps) {
 </section>
 
 
-      {/* ================= Features ================= */}
-      <section className="py-24 bg-[#FCFBF5]">
-        <div className="container mx-auto max-w-[1440px] px-8">
-          <h2 className="text-3xl font-semibold text-[#3F2A22] text-center mb-12">
-            {t?.featuresTitle ?? (isRTL ? 'لماذا حِرفُنا؟' : 'Why Herafona?')}
-          </h2>
+   {/* ================= Features ================= */}
+<section className="py-24 bg-[#FCFBF5]">
+  <div className="container mx-auto max-w-[1440px] px-8">
+    <h2 className="text-3xl font-semibold text-[#3F2A22] text-center mb-12">
+      {isRTL ? 'لماذا حِرفُنا؟' : 'Why Herafona?'}
+    </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {/* Feature 1 */}
-            <div className="text-center">
-              <div className="h-24 w-24 rounded-full bg-white border-2 border-[#3F2A22] mx-auto mb-6" />
-              <h3 className="text-2xl mb-3 text-[#3F2A22]">
-                {t?.featureQuality ?? (isRTL ? 'طبيعة أصيلة' : 'Guaranteed Quality')}
-              </h3>
-              <p className="text-muted-foreground leading-relaxed">
-                {t?.featureQualityDesc ??
-                  (isRTL
-                    ? 'استمتع بجمال الطبيعة السعودية التي تلهم الحِرف وتغذي روح الإبداع'
-                    : 'We ensure an exceptional experience with certified artisans')}
-              </p>
-            </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-12 items-start text-center">
+      {/* Feature 1 - هوية ثقافية */}
+      <div className="space-y-4">
+        <img
+          src="/benefits/Sadu.png"
+          alt="هوية ثقافية"
+          className="w-24 h-24 mx-auto object-contain"
+        />
+        <h3 className="text-2xl font-semibold text-[#3F2A22]">
+          هوية ثقافية
+        </h3>
+        <p className="text-[#6B6B6B] max-w-[360px] mx-auto leading-relaxed">
+          اكتشف نقوشًا وزخارف تنبض بعبق التاريخ وأصالة التراث العريق.
+        </p>
+      </div>
 
-            {/* Feature 2 */}
-            <div className="text-center">
-              <div className="h-24 w-24 rounded-full bg-white border-2 border-[#3F2A22] mx-auto mb-6" />
-              <h3 className="text-2xl mb-3 text-[#3F2A22]">
-                {t?.featureEasy ?? (isRTL ? 'حجز سهل وسريع' : 'Easy Booking')}
-              </h3>
-              <p className="text-muted-foreground leading-relaxed">
-                {t?.featureEasyDesc ??
-                  (isRTL
-                    ? 'احجز تجربتك بسهولة، واختر الوقت المناسب، وادفع بأمان'
-                    : 'Book in simple, quick steps')}
-              </p>
-            </div>
+      {/* Feature 2 - حرف متوارثة */}
+      <div className="space-y-4">
+        <img
+          src="/benefits/Pottrey.png"
+          alt="حرف متوارثة"
+          className="w-24 h-24 mx-auto object-contain"
+        />
+        <h3 className="text-2xl font-semibold text-[#3F2A22]">
+          حرف متوارثة
+        </h3>
+        <p className="text-[#6B6B6B] max-w-[360px] mx-auto leading-relaxed">
+          تعرّف على فنون يدوية عريقة شكّلت ملامح الحياة اليومية عبر القرون.
+        </p>
+      </div>
 
-            {/* Feature 3 */}
-            <div className="text-center">
-              <div className="h-24 w-24 rounded-full bg-white border-2 border-[#3F2A22] mx-auto mb-6" />
-              <h3 className="text-2xl mb-3 text-[#3F2A22]">
-                {t?.featureSafe ?? (isRTL ? 'هويّة ثقافية' : 'Secure Payment')}
-              </h3>
-              <p className="text-muted-foreground leading-relaxed">
-                {t?.featureSafeDesc ??
-                  (isRTL
-                    ? 'اكتشف نقوشًا وزخارف تنبض بعبق التاريخ وأصالة التراث'
-                    : 'Trusted, protected payments for peace of mind')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Feature 3 - طبيعة أصيلة */}
+      <div className="space-y-4">
+        <img
+          src="/benefits/Palm.png"
+          alt="طبيعة أصيلة"
+          className="w-24 h-24 mx-auto object-contain"
+        />
+        <h3 className="text-2xl font-semibold text-[#3F2A22]">
+          طبيعة أصيلة
+        </h3>
+        <p className="text-[#6B6B6B] max-w-[360px] mx-auto leading-relaxed">
+          استمتع بجمال الطبيعة السعودية التي تلهم الحِرف وتغذي روح الإبداع.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
 
       {/* ================= CTA ================= */}
       <section className="py-24">

@@ -57,12 +57,24 @@ const statusMap: Record<
 
 type ViewType = "products" | "past" | "active";
 
+/* ---------- Helpers ---------- */
 function toDateSafe(d: any): Date | null {
   if (!d) return null;
   if (typeof d?.toDate === "function") return d.toDate();
   if (typeof d === "string" || typeof d === "number") return new Date(d);
   if (d?.seconds) return new Date(d.seconds * 1000);
   return null;
+}
+
+function fmtDate(d: any, isRTL: boolean): string {
+  const dd = toDateSafe(d);
+  if (!dd) return "-";
+  // عرض واضح بالعربية/الإنجليزية
+  return dd.toLocaleString(isRTL ? "ar-SA" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    hour12: true,
+  });
 }
 
 export default function ReservationsPage({
@@ -83,10 +95,12 @@ export default function ReservationsPage({
     (e) => String(e.artisanUid ?? "") === String(userId ?? "")
   );
 
-  const userBookings: Booking[] =
-    userType === "user"
-      ? (bookings ?? []).filter((b) => String(b.userID) === String(userId))
-      : (bookings ?? []).filter((b) => String(b.artisanID) === String(userId));
+  // ملاحظة: لو حساب "tourist" يعتبر مستخدم يحجز لنفسه، خليه مثل "user"
+  const isConsumer = userType === "user" || userType === "tourist";
+
+  const userBookings: Booking[] = isConsumer
+    ? (bookings ?? []).filter((b) => String(b.userID) === String(userId))
+    : (bookings ?? []).filter((b) => String(b.artisanID) === String(userId));
 
   const getFilteredReservations = () => {
     if (activeView === "past") {
@@ -104,7 +118,8 @@ export default function ReservationsPage({
     onUpdateBookingStatus?.(id, newStatus);
   };
 
-  if (userType === "user") {
+  /* ----------------- المستهلك (user/tourist) ----------------- */
+  if (isConsumer) {
     return (
       <div className="w-full min-h-[calc(100vh-5rem)] py-16" dir={isRTL ? "rtl" : "ltr"}>
         <div className="container mx-auto max-w-[1440px] px-8">
@@ -119,37 +134,50 @@ export default function ReservationsPage({
 
           {userBookings.length > 0 ? (
             <div className="bg-white rounded-xl border shadow-lg overflow-hidden">
-              <Table>
+              <Table className="w-full table-fixed" dir={isRTL ? "rtl" : "ltr"}>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>{t.eventName || "اسم الفعالية"}</TableHead>
-                    <TableHead>{t.personsCount || "عدد الأشخاص"}</TableHead>
-                    <TableHead>{t.dateTime || "التاريخ والوقت"}</TableHead>
-                    <TableHead>{t.total || "المجموع"}</TableHead>
-                    <TableHead>{t.status || "الحالة"}</TableHead>
+                  <TableRow className="bg-[#FCFBF5]">
+                    <TableHead className={isRTL ? "text-right" : "text-left"}>
+                      {t.eventName || "اسم الفعالية"}
+                    </TableHead>
+                    <TableHead className="text-center">
+                      {t.personsCount || "عدد الأشخاص"}
+                    </TableHead>
+                    <TableHead className="text-center">
+                      {t.dateTime || "التاريخ والوقت"}
+                    </TableHead>
+                    <TableHead className="text-center">
+                      {t.total || "المجموع"}
+                    </TableHead>
+                    <TableHead className="text-center">
+                      {t.status || "الحالة"}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {userBookings.map((reservation) => {
-                    const dt = toDateSafe(reservation.bookingDate);
-                    return (
-                      <TableRow key={reservation.id}>
-                        <TableCell>{reservation.experienceTitle}</TableCell>
-                        <TableCell>{reservation.numberOfPeople}</TableCell>
-                        <TableCell>{dt ? dt.toLocaleString() : "-"}</TableCell>
-                        <TableCell>
-                          {reservation.totalPrice} {t.sar || "ريال"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={statusMap[reservation.status].color}>
-                            {isRTL
-                              ? statusMap[reservation.status].label
-                              : statusMap[reservation.status].labelEn}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {userBookings.map((reservation) => (
+                    <TableRow key={reservation.id}>
+                      <TableCell className={isRTL ? "text-right" : "text-left"}>
+                        {reservation.experienceTitle}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {reservation.numberOfPeople}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {fmtDate(reservation.bookingDate, isRTL)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {reservation.totalPrice} {t.sar || "ريال"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={`inline-flex items-center justify-center ${statusMap[reservation.status].color}`}>
+                          {isRTL
+                            ? statusMap[reservation.status].label
+                            : statusMap[reservation.status].labelEn}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -180,6 +208,7 @@ export default function ReservationsPage({
     );
   }
 
+  /* ----------------- لوحة الحرفي (artisan) ----------------- */
   return (
     <div className="w-full min-h-[calc(100vh-5rem)] py-16" dir={isRTL ? "rtl" : "ltr"}>
       <div className="container mx-auto max-w-[1440px] px-8">
@@ -241,26 +270,26 @@ export default function ReservationsPage({
                     {t.myProducts || "قائمة المنتجات"}
                   </h2>
                 </div>
-                <Table>
+                <Table className="w-full table-fixed" dir={isRTL ? "rtl" : "ltr"}>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>اسم التجربة</TableHead>
-                      <TableHead>الفئة</TableHead>
-                      <TableHead>المدينة</TableHead>
-                      <TableHead>السعر للشخص</TableHead>
-                      <TableHead>العدد الأقصى</TableHead>
+                    <TableRow className="bg-[#FCFBF5]">
+                      <TableHead className={isRTL ? "text-right" : "text-left"}>اسم التجربة</TableHead>
+                      <TableHead className="text-right">الفئة</TableHead>
+                      <TableHead className="text-right">المدينة</TableHead>
+                      <TableHead className="text-center">السعر للشخص</TableHead>
+                      <TableHead className="text-center">العدد الأقصى</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {artisanExperiences.map((e) => (
                       <TableRow key={e.id}>
-                        <TableCell>{e.title}</TableCell>
-                        <TableCell>
+                        <TableCell className={isRTL ? "text-right" : "text-left"}>{e.title}</TableCell>
+                        <TableCell className="text-right">
                           <Badge variant="outline">{e.category}</Badge>
                         </TableCell>
-                        <TableCell>{e.city}</TableCell>
-                        <TableCell>{e.pricePerPerson} ريال</TableCell>
-                        <TableCell>{e.maxPersons}</TableCell>
+                        <TableCell className="text-right">{e.city}</TableCell>
+                        <TableCell className="text-center">{e.pricePerPerson} ريال</TableCell>
+                        <TableCell className="text-center">{e.maxPersons}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -298,26 +327,28 @@ export default function ReservationsPage({
                     {activeView === "past" ? "الحجوزات السابقة" : "الحجوزات القائمة"}
                   </h2>
                 </div>
-                <Table>
+                <Table className="w-full table-fixed" dir={isRTL ? "rtl" : "ltr"}>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>اسم الفعالية</TableHead>
-                      <TableHead>اسم العميل</TableHead>
-                      <TableHead>عدد الأشخاص</TableHead>
-                      <TableHead>المجموع</TableHead>
-                      <TableHead>الحالة</TableHead>
+                    <TableRow className="bg-[#FCFBF5]">
+                      <TableHead className={isRTL ? "text-right" : "text-left"}>اسم الفعالية</TableHead>
+                      <TableHead className="text-right">اسم العميل</TableHead>
+                      <TableHead className="text-center">عدد الأشخاص</TableHead>
+                      <TableHead className="text-center">المجموع</TableHead>
+                      <TableHead className="text-center">الحالة</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {getFilteredReservations().map((reservation) => (
                       <TableRow key={reservation.id}>
-                        <TableCell>{reservation.experienceTitle}</TableCell>
-                        <TableCell>{reservation.userID}</TableCell>
-                        <TableCell>{reservation.numberOfPeople}</TableCell>
-                        <TableCell>{reservation.totalPrice} ريال</TableCell>
-                        <TableCell>
+                        <TableCell className={isRTL ? "text-right" : "text-left"}>
+                          {reservation.experienceTitle}
+                        </TableCell>
+                        <TableCell className="text-right">{reservation.userID}</TableCell>
+                        <TableCell className="text-center">{reservation.numberOfPeople}</TableCell>
+                        <TableCell className="text-center">{reservation.totalPrice} ريال</TableCell>
+                        <TableCell className="text-center">
                           {activeView === "past" ? (
-                            <Badge className={statusMap[reservation.status].color}>
+                            <Badge className={`inline-flex items-center justify-center ${statusMap[reservation.status].color}`}>
                               {statusMap[reservation.status].label}
                             </Badge>
                           ) : (
